@@ -28,7 +28,7 @@ A simple and lightweight WordPress plugin that provides a custom form via shortc
 
 ## 🚀 Installation
 
-1. Upload the plugin folder to `/wp-content/plugins/formulario-api-custom/`  
+1. Upload the plugin folder to `/wp-content/plugins/qualiform/`  
    _or_ install directly via the WordPress Admin dashboard.
 2. Activate the plugin from the **Plugins** menu in WordPress.
 3. Add the following shortcode to any post or page:
