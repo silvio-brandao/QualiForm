@@ -1,63 +1,34 @@
 <?php
 /**
- * Plugin Name: API integrated form
- * Description: Plugin that sends form data via API and email
- * Version: 1.0
+ * Plugin Name: QualiForm
+ * Description: An integrated form.
+ * Version: 1.2
  * Author: Silvio Brandão
  */
 
 if (!defined('ABSPATH')) exit;
 
-// Shortcode: [formulario_api]
-function quali_form() {
-    ob_start();
-    ?>
-    <form method="post" action="" id="api_form">
-        <input type="text" name="name" placeholder="Seu nome" required><br><br>
-        <input type="email" name="email" placeholder="Seu email" required><br><br>
-        <button type="submit" name="send_form">Enviar</button>
+// Shortcode para exibir o formulário
+function udf_register_shortcode() {
+    ob_start(); ?>
+    <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="action" value="udf_handle_upload">
+
+        <label>Protocolo:</label><br>
+        <input type="text" name="protocolo" required><br><br>
+
+        <label>Arquivo:</label><br>
+        <input type="file" name="arquivo" required><br><br>
+
+        <button type="submit">Enviar</button>
     </form>
-
-    <?php if (isset($_POST['send_form'])): ?>
-        <div style="margin-top: 20px;">
-            <?php echo send_api_form(); ?>
-        </div>
-    <?php endif;
-
-    return ob_get_clean();
+    <?php return ob_get_clean();
 }
-add_shortcode('qualiform', 'quali_form');
+add_shortcode('upload_drive_form', 'udf_register_shortcode');
 
-// Envio para a API externa
-function send_api_form() {
-    $name = sanitize_text_field($_POST['name']);
-    $email = sanitize_email($_POST['email']);
+// Lida com o envio
+add_action('admin_post_udf_handle_upload', 'udf_handle_upload');
+add_action('admin_post_nopriv_udf_handle_upload', 'udf_handle_upload');
 
-    $url = 'https://suaapi.com/endpoint'; 
-    $body = [
-        'name'  => $name,
-        'email' => $email,
-    ];
-
-    $args = [
-        'headers' => [
-            'Content-Type'  => 'application/json',
-            'Authorization' => 'Bearer <token>' 
-        ],
-        'body' => json_encode($body),
-        'timeout' => 15,
-    ];
-
-    $response = wp_remote_post($url, $args);
-
-    if (is_wp_error($response)) {
-        return '<p style="color:red;">Erro ao enviar: ' . $response->get_error_message() . '</p>';
-    } else {
-        $status = wp_remote_retrieve_response_code($response);
-        if ($status === 200 || $status === 201) {
-            return '<p style="color:green;">Formulário enviado com sucesso!</p>';
-        } else {
-            return '<p style="color:red;">Erro ao enviar. Código: ' . esc_html($status) . '</p>';
-        }
-    }
-}
+// Handler separado
+require_once plugin_dir_path(__FILE__) . 'drive-upload-handler.php';
