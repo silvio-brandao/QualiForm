@@ -1,0 +1,26 @@
+name: Deploy Manual
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Auth with Google Cloud
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        token_format: 'id_token'
+        workload_identity_provider: 'projects/119166047550/locations/global/workloadIdentityPools/meu-pool/providers/github-provider'
+        service_account: 'form-276@kopp-implantes.iam.gserviceaccount.com'
+
+    - name: Test gcloud
+      run: gcloud auth list

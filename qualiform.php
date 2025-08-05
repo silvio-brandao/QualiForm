@@ -14,11 +14,14 @@ function udf_register_shortcode() {
     <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" enctype="multipart/form-data">
         <input type="hidden" name="action" value="udf_handle_upload">
 
-        <label>Protocolo:</label><br>
-        <input type="text" name="protocolo" required><br><br>
+        <label>Nome da Ocorrência:</label><br>
+        <input type="text" id="name" name="name" required><br><br>
+
+        <label for="description">Descrição da Ocorrência:</label>
+        <textarea id="description" name="description" required></textarea>
 
         <label>Arquivo:</label><br>
-        <input type="file" name="arquivo" required><br><br>
+        <input type="file" name="file" required><br><br>
 
         <button type="submit">Enviar</button>
     </form>
