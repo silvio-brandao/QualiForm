@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/qualiform-secrets.php'; 
 
 function udf_handle_upload() {
     if (!isset($_POST['name']) || !isset($_FILES['file'])) {
@@ -13,11 +14,29 @@ function udf_handle_upload() {
     $mimeType = mime_content_type($fileTmp);
 
     $client = new Google_Client();
-    $client->setAuthConfig(__DIR__ . '/drive-service-account.json');
+    $client->setClientId(GOOGLE_CLIENT_ID);
+    $client->setClientSecret(GOOGLE_CLIENT_SECRET);
+    $client->setRedirectUri('https://koppimplantes.com/oauth-google.php');
     $client->addScope(Google_Service_Drive::DRIVE);
+
+    $tokenPath = __DIR__ . '/google_token.json';
+    if (file_exists($tokenPath)) {
+        $accessToken = json_decode(file_get_contents($tokenPath), true);
+        $client->setAccessToken($accessToken);
+
+        if ($client->isAccessTokenExpired() && isset($accessToken['refresh_token'])) {
+            $client->fetchAccessTokenWithRefreshToken($accessToken['refresh_token']);
+            file_put_contents($tokenPath, json_encode($client->getAccessToken()));
+        }
+    } else {
+        wp_die('Token do Google não encontrado. Faça o fluxo OAuth primeiro.');
+    }
+
     $service = new Google_Service_Drive($client);
 
     $parentFolderId = QUALIFORM_DRIVE_FOLDER_ID; 
+
+    $protocolo = isset($_POST['protocolo']) ? sanitize_text_field($_POST['protocolo']) : 'Protocolo-' . date('YmdHis');
 
     $folderMetadata = new Google_Service_Drive_DriveFile([
         'name' => $protocolo,
@@ -41,16 +60,13 @@ function udf_handle_upload() {
         'fields' => 'id, webViewLink'
     ]);
 
-    $companyId  = get_option('qualiform_company_id', 1);
-    $categoryId = get_option('qualiform_category_id', 1);
-
-    update_option('qualiform_company_id', $companyId + 1);
-    update_option('qualiform_category_id', $categoryId + 1);
+    $companyId  = '1';
+    $categoryId = '2';
 
     $occurrenceData = [
         "companyId"   => (string)$companyId,
         "name"        => isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '',
-        "description" => isset($_POST['description']) ? sanitize_textarea_field($_POST['description']) : '',
+        "description" => isset($_POST['description']) ? sanitize_text_field($_POST['description']) : '',
         "categoryId"  => (string)$categoryId
     ];
 
