@@ -1049,6 +1049,9 @@ function udf_register_shortcode() {
 
         formData.append('json_data', JSON.stringify(obj));
 
+        //console.log(Object.fromEntries(formData.entries()));
+        //console.log('JSON string:', formData.get('json_data'));
+
         fetch('<?php echo esc_url(admin_url('admin-post.php?action=udf_handle_upload', 'https')); ?>', {
             method: 'POST',
             body: formData
@@ -1071,3 +1074,5 @@ add_action('admin_post_udf_handle_upload', 'udf_handle_upload');
 add_action('admin_post_nopriv_udf_handle_upload', 'udf_handle_upload');
 
 require_once plugin_dir_path(__FILE__) . 'drive-upload-handler.php';
+
+

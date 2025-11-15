@@ -23,18 +23,49 @@ function udf_handle_upload() {
             // Não para o processamento
         }
 
-        // --- ENVIO POR EMAIL ---
-        $to = 'silviobrandao99@gmail.com';
-        $subject = 'Novo envio do formulário QualiForm';
-        $body = "Novo envio do formulário QualiForm:\n\n";
+        // --- DESCRIÇÃO AMIGÁVEL PARA A API ---
+        $friendlyDescription = ""; 
+
+        // Loop em todos os dados do formulário
         foreach ($form_data as $key => $value) {
-            if (is_array($value)) {
-                $body .= ucfirst($key) . ': ' . implode(', ', $value) . "\n";
-            } else {
-                $body .= ucfirst($key) . ': ' . $value . "\n";
+            
+            // Pula campos de controle (como 'action')
+            // E pula campos que o usuário deixou em branco (como arrays vazios ou strings vazias)
+            if ($key === 'action' || empty($value)) {
+                continue;
             }
+
+            // AQUI ESTÁ A LÓGICA CORRETA
+            // 1. Verificamos se o valor é um array (ex: [item1, item2])
+            if (is_array($value)) {
+                // 2. Se for, usamos implode() para juntar TODOS os itens com ", "
+                $valueString = implode(', ', $value);
+            } else {
+                // 3. Se não for, é um valor simples, então só o usamos
+                $valueString = $value;
+            }
+            
+            // (Bônus) Isso limpa a chave, trocando "Exposicao[]" por "Exposicao"
+            $cleanKey = str_replace('[]', '', $key);
+
+            // 4. Adicionamos a linha formatada com HTML
+            $friendlyDescription .= '<strong>' . ucfirst($cleanKey) . ':</strong> ' . $valueString . '<br>';
         }
-        wp_mail($to, $subject, $body);
+
+        $to = 'fernandofalat@gmail.com';
+        $subject = 'Novo envio do formulário QualiForm';
+        $body = "<h1>Novo envio do formulário QualiForm</h1>" . $friendlyDescription;
+        $headers = ['Content-Type: text/html; charset=UTF-8'];
+        
+        // log do e-mail - erros do servidor
+        $foi_enviado = wp_mail($to, $subject, $body, $headers);
+
+        // Logue o resultado (isso vai aparecer no arquivo de log)
+        if ($foi_enviado) {
+            error_log('WP Mail: E-mail enviado com sucesso para a fila.');
+        } else {
+            error_log('WP Mail: FALHA AO ENVIAR O E-MAIL.'); // <-- É isso que queremos ver
+        }
 
         // --- GOOGLE DRIVE ---
         $uploadedFile = null;
@@ -140,8 +171,8 @@ function udf_handle_upload() {
 
         $occurrenceData = [
             "companyId"   => (string)$companyId,
-            "name"        => 'Ocorrencia',
-            "description" => 'teste',
+            "name"        => $form_data['name'],
+            "description" => $friendlyDescription,
             "categoryId"  => (string)$categoryId
         ];
 
