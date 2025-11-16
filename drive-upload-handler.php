@@ -52,7 +52,7 @@ function udf_handle_upload() {
             $friendlyDescription .= '<strong>' . ucfirst($cleanKey) . ':</strong> ' . $valueString . '<br>';
         }
 
-        $to = 'fernandofalat@gmail.com';
+        $to = $form_data['email'];
         $subject = 'Novo envio do formulário QualiForm';
         $body = "<h1>Novo envio do formulário QualiForm</h1>" . $friendlyDescription;
         $headers = ['Content-Type: text/html; charset=UTF-8'];
