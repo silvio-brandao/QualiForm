@@ -167,7 +167,7 @@ function udf_handle_upload() {
 
         // --- API QUALIEX: Enviar ocorrência ---
         $companyId  = 'dEtnzDjd';
-        $categoryId = 'ugUthKum';
+        $categoryId = 'L8yHAAD4';
 
         $occurrenceData = [
             "companyId"   => (string)$companyId,
