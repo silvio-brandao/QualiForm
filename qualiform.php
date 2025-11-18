@@ -8,7 +8,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-function udf_register_shortcode() {
+function qualiform_register_shortcode() {
     ob_start(); ?>
 
     <style>
@@ -1068,7 +1068,7 @@ function udf_register_shortcode() {
     </script>
     <?php return ob_get_clean();
 }
-add_shortcode('upload_drive_form', 'udf_register_shortcode');
+add_shortcode('upload_drive_form', 'qualiform_register_shortcode');
 
 add_action('admin_post_udf_handle_upload', 'udf_handle_upload');
 add_action('admin_post_nopriv_udf_handle_upload', 'udf_handle_upload');
