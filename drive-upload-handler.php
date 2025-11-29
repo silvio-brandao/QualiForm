@@ -1,25 +1,46 @@
 <?php
 
-require_once __DIR__ . '/vendor/autoload.php';
+// --- DEBUG LOGGING SETUP ---
+if (!function_exists('qualiform_debug_log')) {
+    function qualiform_debug_log($message) {
+        $log_file = __DIR__ . '/qualiform_debug.log';
+        $timestamp = date('Y-m-d H:i:s');
+        file_put_contents($log_file, "[$timestamp] $message\n", FILE_APPEND);
+    }
+}
+
+qualiform_debug_log("Script loaded.");
+
+// Tenta carregar o autoloader se existir (Composer standard)
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+    require_once __DIR__ . '/vendor/autoload.php';
+    qualiform_debug_log("Autoloader loaded.");
+}
+
 require_once __DIR__ . '/qualiform-secrets.php'; 
 
+use Dompdf\Dompdf;
+use Dompdf\Options;
+
 function udf_handle_upload() {
+    qualiform_debug_log("udf_handle_upload called.");
+
     try {
         // Recebe os dados do formulário em JSON
         if (!isset($_POST['json_data'])) {
-            error_log('json_data não enviado');
+            qualiform_debug_log('json_data não enviado');
             // Não para o processamento
         }
         $json_data = isset($_POST['json_data']) ? wp_unslash($_POST['json_data']) : '';
         $form_data = $json_data ? json_decode($json_data, true) : [];
 
         if (!$form_data || !isset($form_data['name'])) {
-            error_log('JSON inválido ou campo name ausente');
+            qualiform_debug_log('JSON inválido ou campo name ausente');
             // Não para o processamento
         }
 
         if (!isset($_FILES['file']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
-            error_log('Arquivo não enviado ou inválido');
+            qualiform_debug_log('Arquivo não enviado ou inválido');
             // Não para o processamento
         }
 
@@ -57,35 +78,69 @@ function udf_handle_upload() {
         $to = $form_data['email'];
         $subject = 'Envio de Reclamação ' . $protocolo;
         
-        // 1. Corpo do E-mail (Simples e Instrucional)
+        // 1. Corpo do E-mail (HTML)
         $nomeCliente = isset($form_data['name']) ? $form_data['name'] : 'Cliente';
         
-        $body = "Olá, " . $nomeCliente . "!\n\n";
-        $body .= "Recebemos o seu relato técnico com sucesso. O número do seu protocolo é: " . $protocolo . "\n\n";
-        $body .= "--------------------------------------------------\n";
-        $body .= "IMPORTANTE - VEJA OS ANEXOS:\n";
-        $body .= "--------------------------------------------------\n\n";
-        $body .= "1. ARQUIVO 'Relatorio_" . $protocolo . ".html':\n";
-        $body .= "   - Este é o comprovante oficial do seu envio.\n";
-        $body .= "   - COMO ABRIR: Clique duas vezes no arquivo para abri-lo em seu navegador de internet (Google Chrome, Edge, Safari, etc).\n";
-        $body .= "   - COMO SALVAR: Com o arquivo aberto no navegador, pressione 'Ctrl + P' (ou vá em Imprimir) e escolha a opção 'Salvar como PDF'.\n\n";
-        $body .= "2. ARQUIVO 'email.jpg':\n";
-        $body .= "   - Contém as instruções visuais de como preparar e enviar o produto físico para análise.\n\n";
-        $body .= "Atenciosamente,\nEquipe Kopp Implantes";
+        $body = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+                h2 { color: #ff7200; margin-bottom: 20px; }
+                p { margin-bottom: 15px; }
+                hr { border: 0; border-top: 1px solid #eee; margin: 30px 0; }
+                ul { margin-bottom: 20px; padding-left: 20px; }
+                li { margin-bottom: 8px; }
+                .highlight { color: #ff7200; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <h2>Olá, ' . esc_html($nomeCliente) . '.</h2>
+            <p>Confirmamos o recebimento do seu <strong>Relato Técnico</strong>.</p>
+            
+            <p>Na Kopp, a qualidade de nossos produtos e a segurança de seus pacientes são prioridades absolutas. Tratamos cada ocorrência relatada com o máximo rigor, seriedade e transparência.</p>
+            
+            <p>Seu relato já foi registrado em nosso sistema e será encaminhado imediatamente para o nosso setor de <strong>Garantia da Qualidade</strong> para uma análise técnica detalhada. Este processo é fundamental para assegurarmos a excelência contínua de nossas soluções.</p>
+            
+            <hr>
+            <p><strong>Seu Protocolo de Atendimento: <span class="highlight">' . esc_html($protocolo) . '</span></strong></p>
+            
+            <p>Para prosseguirmos com a análise, por favor verifique os anexos deste e-mail:</p>
+            <ul>
+                <li><strong>Relatorio_' . esc_html($protocolo) . '.pdf:</strong> O comprovante oficial do seu registro, contendo todos os dados informados.</li>
+                <li><strong>Instruções (Imagem):</strong> Um guia visual importante sobre como preparar e enviar a peça física para nossa análise (caso aplicável).</li>
+            </ul>
+            
+            <p>Agradecemos sua colaboração para mantermos nossos altos padrões de qualidade.</p>
+            <p style="color: #777; font-size: 0.9em; margin-top: 30px;">Atenciosamente,<br>Equipe de Qualidade Kopp Implantes</p>
+        </body>
+        </html>';
 
-        $headers = []; 
+        $headers = ['Content-Type: text/html; charset=UTF-8']; 
 
         // 2. Gerar Relatório HTML (Estilo A4)
         
-        // Converter logo local para Base64 para garantir que apareça offline/sem bloqueios
+        // Tenta carregar a imagem como Base64 para embutir diretamente no HTML
+        // Isso evita problemas de permissão ou path resolution no Dompdf
         $logoPath = plugin_dir_path(__FILE__) . 'img/kopp_logo.png';
-        $logoBase64 = '';
-        $logoSrc = 'https://koppimplantes.com/wp-content/uploads/2021/06/logo-kopp.png'; // Fallback
+        $logoSrc = ''; // Inicialmente vazio ou fallback
 
         if (file_exists($logoPath)) {
             $logoData = file_get_contents($logoPath);
-            $logoBase64 = base64_encode($logoData);
-            $logoSrc = 'data:image/png;base64,' . $logoBase64;
+            if ($logoData !== false) {
+                $base64 = base64_encode($logoData);
+                // Assume PNG baseado no nome do arquivo
+                $logoSrc = 'data:image/png;base64,' . $base64;
+                qualiform_debug_log("Logo loaded and encoded successfully. Base64 length: " . strlen($base64));
+            } else {
+                qualiform_debug_log("Failed to read logo file content: " . $logoPath);
+            }
+        } else {
+            qualiform_debug_log("Logo file not found at: " . $logoPath);
+            // Tenta URL pública como último recurso, se remote enabled funcionar
+            $logoSrc = 'https://koppimplantes.com/wp-content/uploads/2021/06/logo-kopp.png';
         }
 
         $dataEnvio = date('d/m/Y H:i');
@@ -97,8 +152,8 @@ function udf_handle_upload() {
             <meta charset="UTF-8">
             <title>Relatório Técnico - ' . $protocolo . '</title>
             <style>
-                body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; color: #333; margin: 0; padding: 20px; background: #f0f0f0; }
-                .a4-page { width: 100%; max-width: 21cm; margin: 0 auto; border: 1px solid #ccc; padding: 40px; box-sizing: border-box; background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+                @page { margin: 2cm; }
+                body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; color: #333; }
                 .header { text-align: center; border-bottom: 2px solid #ff7200; padding-bottom: 20px; margin-bottom: 30px; }
                 .header img { max-height: 70px; margin-bottom: 15px; }
                 .header h1 { margin: 0; color: #ff7200; font-size: 24px; text-transform: uppercase; }
@@ -107,58 +162,75 @@ function udf_handle_upload() {
                 .info-row { margin-bottom: 8px; border-bottom: 1px dotted #eee; padding-bottom: 4px; }
                 .label { font-weight: bold; color: #555; display: inline-block; width: 35%; vertical-align: top; }
                 .value { display: inline-block; width: 60%; color: #000; font-weight: 500; }
-                .footer { margin-top: 50px; border-top: 1px solid #ccc; padding-top: 15px; text-align: center; font-size: 10px; color: #999; }
-                .print-hint { text-align: center; background: #fff3cd; color: #856404; padding: 10px; margin-bottom: 20px; border: 1px solid #ffeeba; border-radius: 4px; font-size: 13px; }
-                @media print {
-                    body { padding: 0; background: #fff; }
-                    .a4-page { border: none; width: 100%; max-width: none; padding: 0; box-shadow: none; margin: 0; }
-                    .print-hint { display: none; }
-                }
+                .footer { margin-top: 50px; border-top: 1px solid #ccc; padding-top: 15px; text-align: center; font-size: 10px; color: #999; position: fixed; bottom: 0; left: 0; right: 0; }
             </style>
         </head>
         <body>
-            <div class="print-hint">
-                <strong>DICA:</strong> Pressione <code>Ctrl + P</code> (ou Cmd + P no Mac) para Salvar como PDF ou Imprimir este documento.
+            <div class="header">
+                <img src="' . $logoSrc . '" alt="Kopp Implantes">
+                <h1>Relatório de Ocorrência</h1>
+                <div style="font-size: 16px; margin-top: 10px; color: #333;">Protocolo: <strong>' . $protocolo . '</strong></div>
             </div>
-            <div class="a4-page">
-                <div class="header">
-                    <img src="' . $logoSrc . '" alt="Kopp Implantes">
-                    <h1>Relatório de Ocorrência</h1>
-                    <div style="font-size: 16px; margin-top: 10px; color: #333;">Protocolo: <strong>' . $protocolo . '</strong></div>
-                </div>
 
-                <div class="meta">
-                    Data do Envio: ' . $dataEnvio . '<br>
-                    Gerado automaticamente pelo sistema QualiForm
-                </div>
+            <div class="meta">
+                Data do Envio: ' . $dataEnvio . '<br>
+                Gerado automaticamente pelo sistema QualiForm
+            </div>
 
-                <h3 style="color: #333; border-left: 4px solid #ff7200; padding-left: 10px; margin-bottom: 20px;">Dados do Relatório</h3>
-                
-                ' . $friendlyDescription . '
+            <h3 style="color: #333; border-left: 4px solid #ff7200; padding-left: 10px; margin-bottom: 20px;">Dados do Relatório</h3>
+            
+            ' . $friendlyDescription . '
 
-                <div class="footer">
-                    Kopp Implantes - Sistema de Gestão da Qualidade<br>
-                    Este documento é um comprovante oficial de envio de relato técnico.
-                </div>
+            <div class="footer">
+                Kopp Implantes - Sistema de Gestão da Qualidade<br>
+                Este documento é um comprovante oficial de envio de relato técnico.
             </div>
         </body>
         </html>';
 
-        // 3. Salvar arquivo HTML temporário
+        // 3. Gerar PDF e Salvar arquivo temporário
         $upload_dir = wp_upload_dir(); // Usa diretório de upload do WP para garantir permissões
         $temp_dir = $upload_dir['basedir'] . '/qualiform_temp';
         if (!file_exists($temp_dir)) {
             mkdir($temp_dir, 0755, true);
         }
         
-        $reportFilename = 'Relatorio_' . $protocolo . '.html';
+        $reportFilename = 'Relatorio_' . $protocolo . '.pdf';
         $reportPath = $temp_dir . '/' . $reportFilename;
-        file_put_contents($reportPath, $htmlReport);
+        
+        // Geração PDF (Modern Dompdf 2.x/3.x)
+        try {
+            qualiform_debug_log("Starting PDF generation (Modern Dompdf)...");
+            
+            if (class_exists('Dompdf\Dompdf')) {
+                $options = new Options();
+                $options->set('isRemoteEnabled', true);
+                
+                $dompdf = new Dompdf($options);
+                $dompdf->loadHtml($htmlReport);
+                $dompdf->setPaper('A4', 'portrait');
+                $dompdf->render();
+                file_put_contents($reportPath, $dompdf->output());
+                qualiform_debug_log("PDF generated successfully.");
+            } else {
+                throw new Exception("Classe Dompdf\Dompdf não encontrada. Verifique a instalação do plugin.");
+            }
+            
+        } catch (Exception $e) {
+            qualiform_debug_log('Erro ao gerar PDF: ' . $e->getMessage());
+            // Fallback para HTML
+            $reportFilename = 'Relatorio_' . $protocolo . '.html';
+            $reportPath = $temp_dir . '/' . $reportFilename;
+            file_put_contents($reportPath, $htmlReport);
+            
+            $body = str_replace('.pdf', '.html', $body);
+            $body = str_replace('(formato PDF)', '(formato HTML)', $body);
+        }
 
         // 4. Definir anexos
         $attachments = [];
         
-        // Anexo 1: Relatório HTML
+        // Anexo 1: Relatório PDF (ou HTML fallback)
         if (file_exists($reportPath)) {
             $attachments[] = $reportPath;
         }
@@ -175,9 +247,9 @@ function udf_handle_upload() {
 
         // Logue o resultado
         if ($foi_enviado) {
-            error_log('WP Mail: E-mail enviado com sucesso para a fila.');
+            qualiform_debug_log('WP Mail: E-mail enviado com sucesso para a fila.');
         } else {
-            error_log('WP Mail: FALHA AO ENVIAR O E-MAIL.');
+            qualiform_debug_log('WP Mail: FALHA AO ENVIAR O E-MAIL.');
         }
 
         // 6. Limpeza
@@ -213,7 +285,7 @@ function udf_handle_upload() {
                     file_put_contents($tokenPath, json_encode($client->getAccessToken()));
                 }
             } else {
-                error_log('Token do Google não encontrado');
+                qualiform_debug_log('Token do Google não encontrado');
                 $driveError = 'Token do Google não encontrado.';
             }
 
@@ -245,7 +317,7 @@ function udf_handle_upload() {
                 ]);
             }
         } catch (Exception $e) {
-            error_log('Erro no upload do Google Drive: ' . $e->getMessage());
+            qualiform_debug_log('Erro no upload do Google Drive: ' . $e->getMessage());
             $driveError = $e->getMessage();
         }
 
@@ -270,7 +342,7 @@ function udf_handle_upload() {
         $loginResponse = wp_remote_post($loginUrl, $loginArgs);
 
         if (is_wp_error($loginResponse) || wp_remote_retrieve_response_code($loginResponse) >= 400) {
-            error_log('Erro ao obter token Forlogic: ' . print_r($loginResponse, true));
+            qualiform_debug_log('Erro ao obter token Forlogic: ' . print_r($loginResponse, true));
             wp_send_json_error(['message' => 'Erro ao autenticar na API Qualiex.']);
             exit;
         }
@@ -279,7 +351,7 @@ function udf_handle_upload() {
         $accessToken = isset($loginData['access_token']) ? $loginData['access_token'] : null;
 
         if (!$accessToken) {
-            error_log('Token de acesso não retornado pelo login Forlogic: ' . print_r($loginData, true));
+            qualiform_debug_log('Token de acesso não retornado pelo login Forlogic: ' . print_r($loginData, true));
             wp_send_json_error(['message' => 'Token de acesso não retornado pela API Qualiex.']);
             exit;
         }
@@ -311,7 +383,7 @@ function udf_handle_upload() {
         $response = wp_remote_post($apiUrl, $args);
 
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) >= 400) {
-            error_log('Erro na API Qualiex: ' . print_r($response, true));
+            qualiform_debug_log('Erro na API Qualiex: ' . print_r($response, true));
             wp_send_json_error(['message' => 'Erro ao enviar para a API Qualiex.']);
             exit;
         }
@@ -324,7 +396,7 @@ function udf_handle_upload() {
         ]);
         exit;
     } catch (Exception $e) {
-        error_log('Erro no udf_handle_upload: ' . $e->getMessage());
+        qualiform_debug_log('Erro no udf_handle_upload: ' . $e->getMessage());
         wp_send_json_error(['message' => 'Erro interno ao processar o formulário.']);
     }
 }
