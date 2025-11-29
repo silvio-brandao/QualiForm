@@ -23,6 +23,8 @@ function udf_handle_upload() {
             // Não para o processamento
         }
 
+        $protocolo = isset($form_data['protocolo']) ? sanitize_text_field($form_data['protocolo']) : 'Protocolo-' . date('YmdHis');
+
         // --- DESCRIÇÃO AMIGÁVEL PARA A API ---
         $friendlyDescription = ""; 
 
@@ -53,19 +55,136 @@ function udf_handle_upload() {
         }
 
         $to = $form_data['email'];
-        $subject = 'Novo envio do formulário QualiForm';
-        $body = "<h1>Novo envio do formulário QualiForm</h1>" . $friendlyDescription;
-        $headers = ['Content-Type: text/html; charset=UTF-8'];
+        $subject = 'Envio de Reclamação ' . $protocolo;
         
-        // log do e-mail - erros do servidor
-        $foi_enviado = wp_mail($to, $subject, $body, $headers);
+        // 1. Corpo do E-mail (Simples e Instrucional)
+        $nomeCliente = isset($form_data['name']) ? $form_data['name'] : 'Cliente';
+        
+        $body = "Olá, " . $nomeCliente . "!\n\n";
+        $body .= "Recebemos o seu relato técnico com sucesso. O número do seu protocolo é: " . $protocolo . "\n\n";
+        $body .= "--------------------------------------------------\n";
+        $body .= "IMPORTANTE - VEJA OS ANEXOS:\n";
+        $body .= "--------------------------------------------------\n\n";
+        $body .= "1. ARQUIVO 'Relatorio_" . $protocolo . ".html':\n";
+        $body .= "   - Este é o comprovante oficial do seu envio.\n";
+        $body .= "   - COMO ABRIR: Clique duas vezes no arquivo para abri-lo em seu navegador de internet (Google Chrome, Edge, Safari, etc).\n";
+        $body .= "   - COMO SALVAR: Com o arquivo aberto no navegador, pressione 'Ctrl + P' (ou vá em Imprimir) e escolha a opção 'Salvar como PDF'.\n\n";
+        $body .= "2. ARQUIVO 'email.jpg':\n";
+        $body .= "   - Contém as instruções visuais de como preparar e enviar o produto físico para análise.\n\n";
+        $body .= "Atenciosamente,\nEquipe Kopp Implantes";
 
-        // Logue o resultado (isso vai aparecer no arquivo de log)
+        $headers = []; 
+
+        // 2. Gerar Relatório HTML (Estilo A4)
+        
+        // Converter logo local para Base64 para garantir que apareça offline/sem bloqueios
+        $logoPath = plugin_dir_path(__FILE__) . 'img/kopp_logo.png';
+        $logoBase64 = '';
+        $logoSrc = 'https://koppimplantes.com/wp-content/uploads/2021/06/logo-kopp.png'; // Fallback
+
+        if (file_exists($logoPath)) {
+            $logoData = file_get_contents($logoPath);
+            $logoBase64 = base64_encode($logoData);
+            $logoSrc = 'data:image/png;base64,' . $logoBase64;
+        }
+
+        $dataEnvio = date('d/m/Y H:i');
+        
+        $htmlReport = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Relatório Técnico - ' . $protocolo . '</title>
+            <style>
+                body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; color: #333; margin: 0; padding: 20px; background: #f0f0f0; }
+                .a4-page { width: 100%; max-width: 21cm; margin: 0 auto; border: 1px solid #ccc; padding: 40px; box-sizing: border-box; background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+                .header { text-align: center; border-bottom: 2px solid #ff7200; padding-bottom: 20px; margin-bottom: 30px; }
+                .header img { max-height: 70px; margin-bottom: 15px; }
+                .header h1 { margin: 0; color: #ff7200; font-size: 24px; text-transform: uppercase; }
+                .meta { text-align: right; color: #777; margin-bottom: 30px; font-size: 11px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+                .section { margin-bottom: 15px; }
+                .info-row { margin-bottom: 8px; border-bottom: 1px dotted #eee; padding-bottom: 4px; }
+                .label { font-weight: bold; color: #555; display: inline-block; width: 35%; vertical-align: top; }
+                .value { display: inline-block; width: 60%; color: #000; font-weight: 500; }
+                .footer { margin-top: 50px; border-top: 1px solid #ccc; padding-top: 15px; text-align: center; font-size: 10px; color: #999; }
+                .print-hint { text-align: center; background: #fff3cd; color: #856404; padding: 10px; margin-bottom: 20px; border: 1px solid #ffeeba; border-radius: 4px; font-size: 13px; }
+                @media print {
+                    body { padding: 0; background: #fff; }
+                    .a4-page { border: none; width: 100%; max-width: none; padding: 0; box-shadow: none; margin: 0; }
+                    .print-hint { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="print-hint">
+                <strong>DICA:</strong> Pressione <code>Ctrl + P</code> (ou Cmd + P no Mac) para Salvar como PDF ou Imprimir este documento.
+            </div>
+            <div class="a4-page">
+                <div class="header">
+                    <img src="' . $logoSrc . '" alt="Kopp Implantes">
+                    <h1>Relatório de Ocorrência</h1>
+                    <div style="font-size: 16px; margin-top: 10px; color: #333;">Protocolo: <strong>' . $protocolo . '</strong></div>
+                </div>
+
+                <div class="meta">
+                    Data do Envio: ' . $dataEnvio . '<br>
+                    Gerado automaticamente pelo sistema QualiForm
+                </div>
+
+                <h3 style="color: #333; border-left: 4px solid #ff7200; padding-left: 10px; margin-bottom: 20px;">Dados do Relatório</h3>
+                
+                ' . $friendlyDescription . '
+
+                <div class="footer">
+                    Kopp Implantes - Sistema de Gestão da Qualidade<br>
+                    Este documento é um comprovante oficial de envio de relato técnico.
+                </div>
+            </div>
+        </body>
+        </html>';
+
+        // 3. Salvar arquivo HTML temporário
+        $upload_dir = wp_upload_dir(); // Usa diretório de upload do WP para garantir permissões
+        $temp_dir = $upload_dir['basedir'] . '/qualiform_temp';
+        if (!file_exists($temp_dir)) {
+            mkdir($temp_dir, 0755, true);
+        }
+        
+        $reportFilename = 'Relatorio_' . $protocolo . '.html';
+        $reportPath = $temp_dir . '/' . $reportFilename;
+        file_put_contents($reportPath, $htmlReport);
+
+        // 4. Definir anexos
+        $attachments = [];
+        
+        // Anexo 1: Relatório HTML
+        if (file_exists($reportPath)) {
+            $attachments[] = $reportPath;
+        }
+
+        // Anexo 2: Imagem de Instruções (email.jpg na raiz do plugin)
+        $instructionImgPath = plugin_dir_path(__FILE__) . 'instruções.jpg';
+        if (file_exists($instructionImgPath)) {
+            $attachments[] = $instructionImgPath;
+        }
+
+        // 5. Enviar E-mail
+        // $headers foi esvaziado para texto simples, ou pode ser array()
+        $foi_enviado = wp_mail($to, $subject, $body, $headers, $attachments);
+
+        // Logue o resultado
         if ($foi_enviado) {
             error_log('WP Mail: E-mail enviado com sucesso para a fila.');
         } else {
-            error_log('WP Mail: FALHA AO ENVIAR O E-MAIL.'); // <-- É isso que queremos ver
+            error_log('WP Mail: FALHA AO ENVIAR O E-MAIL.');
         }
+
+        // 6. Limpeza
+        if (file_exists($reportPath)) {
+            unlink($reportPath);
+        }
+        // Não deletamos a imagem de instruções original!
 
         // --- GOOGLE DRIVE ---
         $uploadedFile = null;
@@ -102,7 +221,7 @@ function udf_handle_upload() {
                 $service = new Google_Service_Drive($client);
 
                 $parentFolderId = QUALIFORM_DRIVE_FOLDER_ID; 
-                $protocolo = isset($form_data['protocolo']) ? sanitize_text_field($form_data['protocolo']) : 'Protocolo-' . date('YmdHis');
+                // $protocolo variable is now defined at the top of the function
 
                 $folderMetadata = new Google_Service_Drive_DriveFile([
                     'name' => $protocolo,
@@ -171,7 +290,7 @@ function udf_handle_upload() {
 
         $occurrenceData = [
             "companyId"   => (string)$companyId,
-            "name"        => $form_data['name'],
+            "name"        => "Reclamação - " . $protocolo,
             "description" => $friendlyDescription,
             "categoryId"  => (string)$categoryId
         ];
