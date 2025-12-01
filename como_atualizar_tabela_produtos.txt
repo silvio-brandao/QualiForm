@@ -1,0 +1,3 @@
+para atualizar a tabela de produtos, salve o arquivo .xslx de produtos com o nome "produtos.xlsx", no mesmo formato que o antigo.
+
+tenha um ambiente com python e pandas e rode o script.

@@ -823,7 +823,7 @@ function qualiform_register_shortcode() {
                         <div class="form-group radio-group">
                             <label>Foi utilizado um dispositivo para controle de torque? <span style="color:red">*</span></label>
                             <input type="radio" id="ct_sim" name="controle_torque" value="Sim" required> <label for="ct_sim">Sim</label><br>
-V                            <input type="radio" id="ct_nao" name="controle_torque" value="Não" required> <label for="ct_nao">Não</label><br>
+                            <input type="radio" id="ct_nao" name="controle_torque" value="Não" required> <label for="ct_nao">Não</label><br>
                             <input type="radio" id="ct_nao_inst" name="controle_torque" value="O componente protético não foi instalado" required> <label for="ct_nao_inst">O componente protético não foi instalado</label>
                         </div>
 
@@ -892,8 +892,7 @@ V                            <input type="radio" id="ct_nao" name="controle_torq
 
                         <div class="form-group radio-group">
                             <label>Foi realizada consulta de controle após a instalação do componente protético? <span style="color:red">*</span></label>
-                            <input type="radio" id="cc_sim" name="consulta_controle" value="Sim" required> <label for="cc_sim">Sim</label><br>
-V                            <input type="radio" id="cc_nao" name="consulta_controle" value="Não" required> <label for="cc_nao">Não</label><br>
+                            <input type="radio" id="cc_sim" name="consulta_controle" value="Sim" required> <label for="cc_sim">Sim</label><br>                          <input type="radio" id="cc_nao" name="consulta_controle" value="Não" required> <label for="cc_nao">Não</label><br>
                             <input type="radio" id="cc_nao_inst" name="consulta_controle" value="O componente não foi instalado" required> <label for="cc_nao_inst">O componente não foi instalado</label><br>
                             <input type="radio" id="cc_antes" name="consulta_controle" value="O evento ocorreu antes da consulta de controle" required> <label for="cc_antes">O evento ocorreu antes da consulta de controle</label>
                         </div>
@@ -1184,12 +1183,14 @@ V                            <input type="radio" id="cc_nao" name="consulta_cont
         }
     }
 
-    // Simulação de banco de dados de produtos/famílias
-    const produtos = {
-        "105.070": { descricao: "Implante Dentário - Modelo X", familia: "Implante Dentário" },
-        "200.123": { descricao: "Componente Protético - Abutment", familia: "Componente Protético" },
-        "300.456": { descricao: "Instrumental Cirúrgico - Broca", familia: "Instrumental Cirúrgico" }
-    };
+    <?php
+    $json_path = plugin_dir_path(__FILE__) . 'produtos.json';
+    $json_content = file_get_contents($json_path);
+    if ($json_content === false) { $json_content = '{}'; }
+    ?>
+
+    // produtos/famílias
+    const produtos = <?php echo $json_content; ?>;
 
     function preencherDescricaoProduto() {
         var ref = document.getElementById('referencia').value.trim();
@@ -1209,6 +1210,13 @@ V                            <input type="radio" id="cc_nao" name="consulta_cont
             if (produtos[ref].familia === "Instrumental Cirúrgico") secaoInstrumental.style.display = 'block';
         }
     }
+
+    document.getElementById('referencia').addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Prevent form submission
+            preencherDescricaoProduto();
+        }
+    });
 
     // Exibe informações do paciente se selecionado "Sim"
     function togglePacienteInfo() {
