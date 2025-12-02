@@ -1143,9 +1143,9 @@ function qualiform_register_shortcode() {
         var numero = document.getElementById('numero').value;
         var email = document.getElementById('email').value;
 
-        // 1. CPF: input detection (contém números)
-        if (cpf.replace(/[^0-9]/g, '').length === 0) {
-            alert('O campo CPF/CNPJ precisa conter números.');
+        // 1. CPF: input detection (apenas dígitos)
+        if (!/^\d+$/.test(cpf)) {
+            alert('O campo CPF/CNPJ deve conter apenas dígitos.');
             document.getElementById('description').focus();
             return;
         }
@@ -1179,6 +1179,35 @@ function qualiform_register_shortcode() {
         document.getElementById('step3').style.display = 'none';
         document.getElementById('step2').style.display = 'block';
     }
+
+    // --- Real-time Validation & Input Restriction ---
+
+    // CPF/CNPJ: Restrict input to numbers only (prevent letters)
+    document.getElementById('description').addEventListener('input', function() {
+        this.value = this.value.replace(/\D/g, '');
+    });
+
+    // Number: Restrict input to numbers only
+    document.getElementById('numero').addEventListener('input', function() {
+        this.value = this.value.replace(/\D/g, '');
+    });
+
+    // Phone: Restrict input to numbers and standard phone symbols
+    document.getElementById('phone').addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9()\s\-+]/g, '');
+    });
+
+    // Email: Visual feedback on blur (red border if invalid)
+    document.getElementById('email').addEventListener('blur', function() {
+        if (this.value && this.value.indexOf('@') === -1) {
+            this.style.borderColor = 'var(--cor-erro)';
+        } else {
+            this.style.borderColor = ''; // Reset
+        }
+    });
+    document.getElementById('email').addEventListener('input', function() {
+        this.style.borderColor = ''; // Reset while typing
+    });
 
     document.getElementById('cep').addEventListener('blur', function() {
         var cep = this.value.replace(/\D/g, '');
