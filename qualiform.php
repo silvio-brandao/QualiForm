@@ -1138,6 +1138,32 @@ function qualiform_register_shortcode() {
             </div> </form>
     </div> <script>
     function nextStep() {
+        // Validação Simples (Input Detection)
+        var cpf = document.getElementById('description').value;
+        var numero = document.getElementById('numero').value;
+        var email = document.getElementById('email').value;
+
+        // 1. CPF: input detection (contém números)
+        if (cpf.replace(/[^0-9]/g, '').length === 0) {
+            alert('O campo CPF/CNPJ precisa conter números.');
+            document.getElementById('description').focus();
+            return;
+        }
+
+        // 2. Número: number input detection (apenas dígitos)
+        if (!/^\d+$/.test(numero)) {
+            alert('O campo Número deve conter apenas dígitos.');
+            document.getElementById('numero').focus();
+            return;
+        }
+
+        // 3. E-mail: contains "@"
+        if (email.indexOf('@') === -1) {
+            alert('O campo E-mail precisa conter um endereço válido com "@".');
+            document.getElementById('email').focus();
+            return;
+        }
+
         document.getElementById('step1').style.display = 'none';
         document.getElementById('step2').style.display = 'block';
     }
