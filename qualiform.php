@@ -162,6 +162,10 @@ function qualiform_register_shortcode() {
             padding-right: 0.5rem; /* Make space for the arrow */
         }
 
+        .udf-form-wrapper textarea#descricao_ocorrido::placeholder {
+            color: #777;
+        }
+
         .udf-form-wrapper input:focus, 
         .udf-form-wrapper select:focus, 
         .udf-form-wrapper textarea:focus {
@@ -384,7 +388,7 @@ function qualiform_register_shortcode() {
             <input type="hidden" name="action" value="udf_handle_upload">
             
             <div class="form-header">
-                <h1>Formulário de Relato Técnico</h1>
+                <h1>Formulário de Ocorrência</h1>
             </div>
 
             <div class="form-body">
@@ -392,14 +396,34 @@ function qualiform_register_shortcode() {
                 <div id="step1" class="form-step">
                     <h3>Passo 1: Identificação do reclamante</h3>
 
-                    <div class="form-group">
-                        <label for="name">Nome Completo / Razão Social</label>
-                        <input type="text" id="name" name="name" required>
+                    <div class="form-group radio-group">
+                        <label>Tipo de Pessoa <span style="color:red">*</span></label>
+                        <input type="radio" id="pessoa_fisica" name="tipo_pessoa" value="fisica" required onchange="toggleTipoPessoa()" checked> <label for="pessoa_fisica">Pessoa Física</label>
+                        <input type="radio" id="pessoa_juridica" name="tipo_pessoa" value="juridica" required onchange="toggleTipoPessoa()"> <label for="pessoa_juridica">Pessoa Jurídica</label>
                     </div>
 
-                    <div class="form-group">
-                        <label for="description">CPF/CNPJ</label>
-                        <input type="text" id="description" name="description" required>
+                    <div id="pessoaFisicaFields" style="display:none;">
+                        <div class="form-group">
+                            <label for="name_fisica">Nome Completo</label>
+                            <input type="text" id="name_fisica" name="name">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="cpf">CPF</label>
+                            <input type="text" id="cpf" name="cpf">
+                        </div>
+                    </div>
+
+                    <div id="pessoaJuridicaFields" style="display:none;">
+                        <div class="form-group">
+                            <label for="name_juridica">Razão Social</label>
+                            <input type="text" id="name_juridica" name="name">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="cnpj">CNPJ</label>
+                            <input type="text" id="cnpj" name="cnpj">
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -496,6 +520,11 @@ function qualiform_register_shortcode() {
                             <label for="categoria_outros">Descreva o problema:</label>
                             <input type="text" id="categoria_outros" name="categoria_outros">
                         </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="descricao_ocorrido">Descrição da Ocorrência</label>
+                        <textarea id="descricao_ocorrido" name="descricao_ocorrido" rows="4" placeholder="Descreva o ocorrido com o máximo de detalhes, incluindo quando foi identificado e em que contexto o produto foi utilizado ou armazenado." required></textarea>
                     </div>
 
                     <div class="button-group">
@@ -1124,30 +1153,119 @@ function qualiform_register_shortcode() {
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="file">Arquivo:</label>
-                        <input type="file" id="file" name="file" required>
-                    </div>
-
                     <div class="button-group">
                         <button type="button" class="secondary-btn" onclick="prevStep3()">Voltar</button>
+                        <button type="button" class="primary-btn" onclick="nextStep4()">Próximo</button>
+                    </div>
+                </div>
+
+                <div id="step4" class="form-step" style="display:none;">
+                    <h3>Passo 4: Documentação</h3>
+
+                    <div class="form-group">
+                        <h4>Nota Fiscal</h4>
+                        <p class="helper-text">Anexe a nota fiscal do produto para prosseguirmos com a análise. (Opcional)</p>
+                        <input type="file" id="nota_fiscal" name="nota_fiscal">
+                    </div>
+
+                    <div class="form-group">
+                        <h4>Documentação Recomendada</h4>
+                        <p class="helper-text">Obrigatório o anexo de pelo menos um arquivo nesta seção; caso não tenha feito nenhum upload nesta seção, é obrigatório que seja selecionado a opção "Não aplicável".</p>
+
+                        <h5>Para ocorrências envolvendo implantes já instalados:</h5>
+                        <div class="form-group">
+                            <label for="radiografia_pre_operatoria">Radiografia pré-operatória (Tomografia, periapical e panorâmica)</label>
+                            <input type="file" id="radiografia_pre_operatoria" name="radiografia_pre_operatoria">
+                        </div>
+                        <div class="form-group">
+                            <label for="radiografia_pos_operatoria">Radiografia pós-operatória (Periapical)</label>
+                            <input type="file" id="radiografia_pos_operatoria" name="radiografia_pos_operatoria">
+                        </div>
+
+                        <h5>Para ocorrências envolvendo componentes protéticos já instalados:</h5>
+                        <div class="form-group">
+                            <label for="radiografia_periapical_componente">Radiografia periapical com o componente instalado</label>
+                            <input type="file" id="radiografia_periapical_componente" name="radiografia_periapical_componente">
+                        </div>
+                        <div class="form-group">
+                            <label for="panoramica_protese">Panorâmica, no caso de próteses tipo protocolo</label>
+                            <input type="file" id="panoramica_protese" name="panoramica_protese">
+                        </div>
+
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="doc_nao_aplicavel" name="doc_nao_aplicavel" value="Não aplicável">
+                            <label for="doc_nao_aplicavel">Não aplicável - Se nenhum dos cenários acima se aplica, selecione esta opção.</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <h4>Outros Arquivos</h4>
+                        <p class="helper-text">Deseja enviar outros arquivos que possam auxiliar na análise? (Por exemplo: fotos clínicas intraoperatórias, imagens do produto na situação atual ou do lote/embalagem). (Opcional)</p>
+                        <input type="file" id="outros_arquivos" name="outros_arquivos" multiple>
+                    </div>
+
+                    <div class="form-group">
+                        <h4>Informações Importantes:</h4>
+                        <ul>
+                            <li><strong>Confidencialidade dos dados:</strong> As informações e documentos enviados serão utilizados exclusivamente para fins de análise técnica, com total respeito à confidencialidade e ao sigilo dos dados fornecidos.</li>
+                        </ul>
+                    </div>
+
+
+                    <div class="button-group">
+                        <button type="button" class="secondary-btn" onclick="prevStep4()">Voltar</button>
                         <button type="button" class="primary-btn" id="enviarJsonBtn">Enviar</button>
                     </div>
                 </div>
 
             </div> </form>
     </div> <script>
+    function toggleTipoPessoa() {
+        var pessoaFisica = document.getElementById('pessoa_fisica').checked;
+        var pessoaJuridica = document.getElementById('pessoa_juridica').checked;
+        var fisicaFields = document.getElementById('pessoaFisicaFields');
+        var juridicaFields = document.getElementById('pessoaJuridicaFields');
+        var nameFisica = document.getElementById('name_fisica');
+        var cpf = document.getElementById('cpf');
+        var nameJuridica = document.getElementById('name_juridica');
+        var cnpj = document.getElementById('cnpj');
+
+        if (pessoaFisica) {
+            fisicaFields.style.display = 'block';
+            juridicaFields.style.display = 'none';
+            nameFisica.required = true;
+            cpf.required = true;
+            nameJuridica.required = false;
+            cnpj.required = false;
+        } else if (pessoaJuridica) {
+            fisicaFields.style.display = 'none';
+            juridicaFields.style.display = 'block';
+            nameFisica.required = false;
+            cpf.required = false;
+            nameJuridica.required = true;
+            cnpj.required = true;
+        }
+    }
+
     function nextStep() {
-        // Validação Simples (Input Detection)
-        var cpf = document.getElementById('description').value;
         var numero = document.getElementById('numero').value;
         var email = document.getElementById('email').value;
+        var pessoaFisica = document.getElementById('pessoa_fisica').checked;
 
-        // 1. CPF: input detection (apenas dígitos)
-        if (!/^\d+$/.test(cpf)) {
-            alert('O campo CPF/CNPJ deve conter apenas dígitos.');
-            document.getElementById('description').focus();
-            return;
+        if (pessoaFisica) {
+            var cpf = document.getElementById('cpf').value;
+            if (!/^\d+$/.test(cpf)) {
+                alert('O campo CPF deve conter apenas dígitos.');
+                document.getElementById('cpf').focus();
+                return;
+            }
+        } else {
+            var cnpj = document.getElementById('cnpj').value;
+            if (!/^\d+$/.test(cnpj)) {
+                alert('O campo CNPJ deve conter apenas dígitos.');
+                document.getElementById('cnpj').focus();
+                return;
+            }
         }
 
         // 2. Número: number input detection (apenas dígitos)
@@ -1179,11 +1297,22 @@ function qualiform_register_shortcode() {
         document.getElementById('step3').style.display = 'none';
         document.getElementById('step2').style.display = 'block';
     }
+    function nextStep4() {
+        document.getElementById('step3').style.display = 'none';
+        document.getElementById('step4').style.display = 'block';
+    }
+    function prevStep4() {
+        document.getElementById('step4').style.display = 'none';
+        document.getElementById('step3').style.display = 'block';
+    }
 
     // --- Real-time Validation & Input Restriction ---
 
     // CPF/CNPJ: Restrict input to numbers only (prevent letters)
-    document.getElementById('description').addEventListener('input', function() {
+    document.getElementById('cpf').addEventListener('input', function() {
+        this.value = this.value.replace(/\D/g, '');
+    });
+    document.getElementById('cnpj').addEventListener('input', function() {
         this.value = this.value.replace(/\D/g, '');
     });
 
@@ -1215,11 +1344,13 @@ function qualiform_register_shortcode() {
             fetch('https://viacep.com.br/ws/' + cep + '/json/')
                 .then(response => response.json())
                 .then(data => {
+                    console.log(data);
                     if (!data.erro) {
-                        document.getElementById('rua').value = data.logouro || '';
+                        document.getElementById('rua').value = data.logradouro || '';
                         document.getElementById('bairro').value = data.bairro || '';
                         document.getElementById('municipio').value = data.localidade || '';
                         document.getElementById('estado').value = data.uf || '';
+                        document.getElementById('complemento').value = data.complemento || '';
                         document.getElementById('pais').value = 'Brasil';
                     }
                 });
@@ -1497,11 +1628,19 @@ function qualiform_register_shortcode() {
         document.getElementById('metodo_esterilizacao_outros').style.display = this.checked ? 'inline-block' : 'none';
     });
 
+    document.addEventListener('DOMContentLoaded', function() {
+    toggleTipoPessoa();
+});
+
     document.getElementById('enviarJsonBtn').addEventListener('click', function(e) {
         e.preventDefault();
 
         const form = document.getElementById('multiStepForm');
         const formData = new FormData(form);
+        const btn = this;
+
+        btn.disabled = true;
+        btn.textContent = 'Enviando...';
 
         const obj = {};
         for (let [key, value] of formData.entries()) {
@@ -1525,7 +1664,7 @@ function qualiform_register_shortcode() {
         //console.log(Object.fromEntries(formData.entries()));
         //console.log('JSON string:', formData.get('json_data'));
 
-        fetch('<?php echo esc_url(admin_url('admin-post.php?action=udf_handle_upload', 'https')); ?>', {
+        fetch('<?php echo esc_url(admin_url('admin-post.php?action=udf_handle_upload', '')); ?>', {
             method: 'POST',
             body: formData
         })
@@ -1534,14 +1673,20 @@ function qualiform_register_shortcode() {
             alert('Enviado com sucesso!');
             form.reset();
             // Reset steps and conditional fields
+            document.getElementById('step4').style.display = 'none';
             document.getElementById('step3').style.display = 'none';
             document.getElementById('step2').style.display = 'none';
             document.getElementById('step1').style.display = 'block';
             document.querySelectorAll('.conditional-field').forEach(el => el.style.display = 'none');
+            toggleTipoPessoa();
 
         })
         .catch(err => {
             alert('Erro ao enviar!');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.textContent = 'Enviar';
         });
     });
 

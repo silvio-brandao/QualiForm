@@ -23,6 +23,8 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 
 function udf_handle_upload() {
+    file_put_contents(__DIR__ . '/qualiform_debug.log', '');
+    qualiform_debug_log("--- NEW REQUEST ---");
     qualiform_debug_log("udf_handle_upload called.");
 
     try {
@@ -39,10 +41,7 @@ function udf_handle_upload() {
             // Não para o processamento
         }
 
-        if (!isset($_FILES['file']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
-            qualiform_debug_log('Arquivo não enviado ou inválido');
-            // Não para o processamento
-        }
+        
 
         $protocolo = isset($form_data['protocolo']) ? sanitize_text_field($form_data['protocolo']) : 'Protocolo-' . date('YmdHis');
 
@@ -79,7 +78,13 @@ function udf_handle_upload() {
         $subject = 'Envio de Reclamação ' . $protocolo;
         
         // 1. Corpo do E-mail (HTML)
-        $nomeCliente = isset($form_data['name']) ? $form_data['name'] : 'Cliente';
+        $rawNome = isset($form_data['name']) ? $form_data['name'] : 'Cliente';
+        if (is_array($rawNome)) {
+            $filtered_names = array_filter($rawNome);
+            $nomeCliente = !empty($filtered_names) ? reset($filtered_names) : 'Cliente';
+        } else {
+            $nomeCliente = $rawNome;
+        }
         
         $body = '
         <!DOCTYPE html>
@@ -158,11 +163,23 @@ function udf_handle_upload() {
                 .header img { max-height: 70px; margin-bottom: 15px; }
                 .header h1 { margin: 0; color: #ff7200; font-size: 24px; text-transform: uppercase; }
                 .meta { text-align: right; color: #777; margin-bottom: 30px; font-size: 11px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+                .content { padding-bottom: 2cm; word-wrap: break-word; } /* Add padding to the bottom of the content */
                 .section { margin-bottom: 15px; }
                 .info-row { margin-bottom: 8px; border-bottom: 1px dotted #eee; padding-bottom: 4px; }
                 .label { font-weight: bold; color: #555; display: inline-block; width: 35%; vertical-align: top; }
-                .value { display: inline-block; width: 60%; color: #000; font-weight: 500; }
-                .footer { margin-top: 50px; border-top: 1px solid #ccc; padding-top: 15px; text-align: center; font-size: 10px; color: #999; position: fixed; bottom: 0; left: 0; right: 0; }
+                .value { display: inline-block; width: 60%; color: #000; font-weight: 500; word-wrap: break-word; }
+                .footer {
+                position: fixed; 
+                bottom: -1cm; 
+                left: 0cm; 
+                right: 0cm;
+                height: 2cm;
+                text-align: center;
+                line-height: 1.5cm;
+                font-size: 10px; 
+                color: #999;
+                border-top: 1px solid #ccc;
+            }
             </style>
         </head>
         <body>
@@ -177,9 +194,11 @@ function udf_handle_upload() {
                 Gerado automaticamente pelo sistema QualiForm
             </div>
 
+            <div class="content">
             <h3 style="color: #333; border-left: 4px solid #ff7200; padding-left: 10px; margin-bottom: 20px;">Dados do Relatório</h3>
             
             ' . $friendlyDescription . '
+            </div>
 
             <div class="footer">
                 Kopp Implantes - Sistema de Gestão da Qualidade<br>
@@ -252,20 +271,10 @@ function udf_handle_upload() {
             qualiform_debug_log('WP Mail: FALHA AO ENVIAR O E-MAIL.');
         }
 
-        // 6. Limpeza
-        if (file_exists($reportPath)) {
-            unlink($reportPath);
-        }
-        // Não deletamos a imagem de instruções original!
-
         // --- GOOGLE DRIVE ---
-        $uploadedFile = null;
         $driveError = null;
         try {
             $name = isset($form_data['name']) ? sanitize_text_field($form_data['name']) : '';
-            $fileTmp = $_FILES['file']['tmp_name'] ?? '';
-            $nomeOriginal = isset($_FILES['file']['name']) ? sanitize_file_name($_FILES['file']['name']) : '';
-            $mimeType = $fileTmp ? mime_content_type($fileTmp) : '';
 
             $client = new Google_Client();
             $client->setClientId(GOOGLE_CLIENT_ID);
@@ -289,9 +298,8 @@ function udf_handle_upload() {
                 $driveError = 'Token do Google não encontrado.';
             }
 
-            if (!$driveError && $fileTmp && $nomeOriginal) {
+            if (!$driveError) {
                 $service = new Google_Service_Drive($client);
-
                 $parentFolderId = QUALIFORM_DRIVE_FOLDER_ID; 
                 // $protocolo variable is now defined at the top of the function
 
@@ -303,18 +311,49 @@ function udf_handle_upload() {
                 $folder = $service->files->create($folderMetadata, ['fields' => 'id']);
                 $folderId = $folder->id;
 
-                $fileMetadata = new Google_Service_Drive_DriveFile([
-                    'name' => $nomeOriginal,
-                    'parents' => [$folderId]
-                ]);
-                $content = file_get_contents($fileTmp);
+                foreach ($_FILES as $fileKey => $file) {
+                    if (is_array($file['name'])) { // Handle multiple files from a single input
+                        foreach ($file['name'] as $key => $value) {
+                            if ($file['error'][$key] == UPLOAD_ERR_OK) {
+                                $fileTmp = $file['tmp_name'][$key];
+                                $nomeOriginal = sanitize_file_name($file['name'][$key]);
+                                $mimeType = mime_content_type($fileTmp);
 
-                $uploadedFile = $service->files->create($fileMetadata, [
-                    'data' => $content,
-                    'mimeType' => $mimeType,
-                    'uploadType' => 'multipart',
-                    'fields' => 'id, webViewLink'
-                ]);
+                                $fileMetadata = new Google_Service_Drive_DriveFile([
+                                    'name' => $nomeOriginal,
+                                    'parents' => [$folderId]
+                                ]);
+                                $content = file_get_contents($fileTmp);
+
+                                $service->files->create($fileMetadata, [
+                                    'data' => $content,
+                                    'mimeType' => $mimeType,
+                                    'uploadType' => 'multipart',
+                                    'fields' => 'id, webViewLink'
+                                ]);
+                            }
+                        }
+                    } else { // Handle single file
+                        if ($file['error'] == UPLOAD_ERR_OK) {
+                            $fileTmp = $file['tmp_name'];
+                            $nomeOriginal = sanitize_file_name($file['name']);
+                            $mimeType = mime_content_type($fileTmp);
+
+                            $fileMetadata = new Google_Service_Drive_DriveFile([
+                                'name' => $nomeOriginal,
+                                'parents' => [$folderId]
+                            ]);
+                            $content = file_get_contents($fileTmp);
+
+                            $service->files->create($fileMetadata, [
+                                'data' => $content,
+                                'mimeType' => $mimeType,
+                                'uploadType' => 'multipart',
+                                'fields' => 'id, webViewLink'
+                            ]);
+                        }
+                    }
+                }
             }
         } catch (Exception $e) {
             qualiform_debug_log('Erro no upload do Google Drive: ' . $e->getMessage());
@@ -360,10 +399,25 @@ function udf_handle_upload() {
         $companyId  = 'dEtnzDjd';
         $categoryId = 'L8yHAAD4';
 
+        $descriptionForQualiex = $friendlyDescription;
+        if (strlen($friendlyDescription) > 4000) {
+            $simplifiedDescription = '<strong>Nome / Razão Social:</strong> ' . $nomeCliente . '<br>';
+            if (isset($form_data['cpf'])) {
+                $simplifiedDescription .= '<strong>CPF:</strong> ' . $form_data['cpf'] . '<br>';
+            }
+            if (isset($form_data['cnpj'])) {
+                $simplifiedDescription .= '<strong>CNPJ:</strong> ' . $form_data['cnpj'] . '<br>';
+            }
+            $simplifiedDescription .= '<strong>Email:</strong> ' . ($form_data['email'] ?? '') . '<br>';
+            $simplifiedDescription .= '<strong>Telefone:</strong> ' . ($form_data['phone'] ?? '') . '<br>';
+            $simplifiedDescription .= '<br><strong>Relatório excede 4000 caracteres, cheque o anexo da ocorrência</strong>';
+            $descriptionForQualiex = $simplifiedDescription;
+        }
+
         $occurrenceData = [
             "companyId"   => (string)$companyId,
             "name"        => "Reclamação - " . $protocolo,
-            "description" => $friendlyDescription,
+            "description" => $descriptionForQualiex,
             "categoryId"  => (string)$categoryId
         ];
 
@@ -380,12 +434,60 @@ function udf_handle_upload() {
             'data_format' => 'body'
         ];
 
+        qualiform_debug_log("Creating QUALIEX occurrence with data: " . wp_json_encode($occurrenceData));
         $response = wp_remote_post($apiUrl, $args);
+
+        qualiform_debug_log('QUALIEX Occurrence Creation Response: ' . wp_remote_retrieve_body($response));
 
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) >= 400) {
             qualiform_debug_log('Erro na API Qualiex: ' . print_r($response, true));
             wp_send_json_error(['message' => 'Erro ao enviar para a API Qualiex.']);
             exit;
+        }
+
+        $occurrenceResponseData = json_decode(wp_remote_retrieve_body($response), true);
+        $occurrenceId = isset($occurrenceResponseData['resultData']['id']) ? $occurrenceResponseData['resultData']['id'] : null;
+
+        if ($occurrenceId && file_exists($reportPath)) {
+            qualiform_debug_log("Uploading PDF to QUALIEX. Occurrence ID: $occurrenceId");
+
+            $reportFilename = basename($reportPath);
+            // Assuming '10' is the correct type for the occurrences module.
+            $uploadUrl = "https://api.forlogic.net/documents/v1/ApiProduct/Upload/3/{$occurrenceId}/{$reportFilename}";
+
+            $fileContent = file_get_contents($reportPath);
+
+            $uploadArgs = [
+                'body'    => $fileContent,
+                'headers' => [
+                    'Content-Type' => 'application/pdf',
+                    'Ocp-Apim-Subscription-Key' => QUALIFORM_FORLOGIC_SUBSCRIPTION_KEY,
+                    'Un-Alias'     => 'kopp',
+                    'Authorization' => $accessToken
+                ],
+                'timeout'     => 30,
+            ];
+
+            $uploadResponse = wp_remote_post($uploadUrl, $uploadArgs);
+            qualiform_debug_log("QUALIEX PDF Upload Response: " . wp_remote_retrieve_body($uploadResponse));
+
+            if (is_wp_error($uploadResponse) || wp_remote_retrieve_response_code($uploadResponse) >= 400) {
+                qualiform_debug_log('Erro ao fazer upload do PDF para a Qualiex: ' . print_r($uploadResponse, true));
+            } else {
+                qualiform_debug_log("PDF report uploaded successfully for occurrence ID: $occurrenceId.");
+            }
+        } else {
+            if (!$occurrenceId) {
+                qualiform_debug_log('Não foi possível obter o ID da ocorrência para fazer o upload do anexo.');
+            }
+            if (!file_exists($reportPath)) {
+                qualiform_debug_log('Arquivo do relatório não encontrado para upload.');
+            }
+        }
+
+        // Limpeza final
+        if (file_exists($reportPath)) {
+            unlink($reportPath);
         }
 
         // Sucesso: retorna JSON (não faz redirect)
@@ -394,6 +496,8 @@ function udf_handle_upload() {
             'drive_link' => $uploadedFile->webViewLink ?? null,
             'drive_error' => $driveError
         ]);
+
+        // Não deletamos a imagem de instruções original!
         exit;
     } catch (Exception $e) {
         qualiform_debug_log('Erro no udf_handle_upload: ' . $e->getMessage());
